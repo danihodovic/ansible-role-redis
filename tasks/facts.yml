@@ -4,7 +4,7 @@
     num_redis_replicas: '{{ groups.redis_replicas | length }}'
     num_redis_sentinel: '{{ groups.redis_sentinel | length }}'
 
-- name: Assert we have the minimum number of sentinel servers
+- name: Assert facts
   assert:
     that:
       - redis_network_range is defined
