@@ -1,0 +1,60 @@
+---
+- include_tasks: ./facts.yml
+
+- name: Pull Redis container
+  docker_image:
+    source: pull
+    name: redis:latest
+    force: true
+
+- name: Create Redis dir
+  file:
+    state: directory
+    path: /opt/redis/data
+    recurse: true
+    mode: 0777
+
+- name: Template Redis config
+  register: template_config
+  template:
+    src: redis.conf
+    dest: /opt/redis/redis.conf
+
+- name: Start Redis
+  docker_container:
+    comparisons:
+      '*': strict
+    image: redis:latest
+    name: redis
+    restart: '{{ template_config.changed }}'
+    restart_policy: unless-stopped
+    command: redis-server /opt/redis/redis.conf
+    memory: '{{ ansible_memory_mb.real.total * 0.1 }}m'
+    cpu_shares: '{{ (1024 * 0.1) | int }}'
+    network_mode: host
+    volumes:
+      - '/opt/redis:/opt/redis'
+
+- name: Wait for port
+  wait_for:
+    host: '{{ redis_bind_ip }}'
+    port: 6379
+    timeout: 30
+
+- name: Check master status
+  when: "'redis_primary' in group_names"
+  changed_when: false
+  shell: 'docker exec redis redis-cli INFO'
+  retries: 10
+  delay: 1
+  register: _health
+  until: "'role:master' in _health.stdout"
+
+- name: Check slave status
+  when: "'redis_replicas' in group_names"
+  changed_when: false
+  shell: 'docker exec redis redis-cli INFO'
+  retries: 10
+  delay: 1
+  register: _health
+  until: "'master_link_status:up' in _health.stdout"

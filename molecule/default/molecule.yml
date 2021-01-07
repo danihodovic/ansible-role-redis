@@ -1,0 +1,52 @@
+---
+dependency:
+  name: galaxy
+driver:
+  name: ec2
+platforms:
+  - &common
+    name: primary
+    vpc_subnet_id: subnet-1efffb7b
+    image: ami-0c48db26521ca9f07
+    instance_type: m5.xlarge
+    groups: [redis_primary, redis_sentinel]
+  - <<: *common
+    name: replica-1
+    groups: [redis_replicas]
+  - <<: *common
+    name: replica-2
+    groups: [redis_replicas, redis_sentinel]
+  - <<: *common
+    name: sentinel
+    groups: [redis_sentinel]
+provisioner:
+  name: ansible
+  config_options:
+    defaults:
+      stdout_callback: yaml
+      host_key_checking: false
+      pipelining: true
+  inventory:
+    group_vars:
+      all:
+        redis_network_range: '172.31.0.0/20'
+        molecule_no_log: false
+verifier:
+  name: testinfra
+  directory: ../../tests
+  options:
+    reruns: '3'
+    reruns-delay: '2'
+scenario:
+  test_sequence:
+    - dependency
+    - lint
+    - cleanup
+    - destroy
+    - syntax
+    - create
+    - converge
+    - side_effect
+    - verify
+    - cleanup
+    - destroy

@@ -1,0 +1,30 @@
+---
+- name: Deploy Redis master
+  hosts: redis_primary
+  vars:
+    ansible_become: true
+  tasks:
+    - name: Deploy Redis master
+      include_role:
+        name: ansible-role-redis
+        tasks_from: redis.yml
+
+- name: Deploy Redis replicas
+  hosts: redis_replicas
+  vars:
+    ansible_become: true
+  tasks:
+    - name: Deploy Redis master
+      include_role:
+        name: ansible-role-redis
+        tasks_from: redis.yml
+
+- name: Deploy Redis sentinel
+  hosts: redis_sentinel
+  vars:
+    ansible_become: true
+  tasks:
+    - name: Deploy Redis sentinel
+      include_role:
+        name: ansible-role-redis
+        tasks_from: sentinel.yml
