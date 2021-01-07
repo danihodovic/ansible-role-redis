@@ -9,6 +9,11 @@
         name: ansible-role-redis
         tasks_from: redis.yml
 
+    - name: Deploy exporter
+      include_role:
+        name: ansible-role-redis
+        tasks_from: prometheus_exporter.yml
+
 - name: Deploy Redis replicas
   hosts: redis_replicas
   vars:

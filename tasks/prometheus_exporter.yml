@@ -1,0 +1,27 @@
+---
+- name: Assert facts
+  assert:
+    that:
+      - redis_network_range is defined
+
+- name: Pull redis exporter image
+  docker_image:
+    source: pull
+    name: oliver006/redis_exporter
+    force: true
+
+- name: Find Redis IP
+  set_fact:
+    redis_bind_ip: '{{ ansible_all_ipv4_addresses | ipaddr(redis_network_range) | max }}'
+
+- name: Start container
+  docker_container:
+    comparisons:
+      '*': strict
+    image: oliver006/redis_exporter
+    name: redis_exporter
+    restart_policy: unless-stopped
+    memory: '{{ ansible_memory_mb.real.total * 0.1 }}m'
+    cpu_shares: '{{ (1024 * 0.1) | int }}'
+    network_mode: host
+    command: '-web.listen-address={{ redis_bind_ip }}:9121'
