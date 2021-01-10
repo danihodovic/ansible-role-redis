@@ -1,0 +1,9 @@
+---
+- name: Check master status
+  when: "'redis_primary' in group_names"
+  changed_when: false
+  shell: 'docker exec redis redis-cli INFO'
+  retries: 10
+  delay: 1
+  register: _health
+  until: "'role:master' in _health.stdout"

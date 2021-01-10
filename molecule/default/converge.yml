@@ -1,35 +1,35 @@
 ---
 - name: Deploy Redis master
-  hosts: redis_primary
+  hosts: primary-1:standalone
   vars:
     ansible_become: true
   tasks:
     - name: Deploy Redis master
       include_role:
-        name: ansible-role-redis
+        name: "{{ lookup('env', 'MOLECULE_PROJECT_DIRECTORY') | basename }}"
         tasks_from: redis.yml
 
     - name: Deploy exporter
       include_role:
-        name: ansible-role-redis
+        name: "{{ lookup('env', 'MOLECULE_PROJECT_DIRECTORY') | basename }}"
         tasks_from: prometheus_exporter.yml
 
 - name: Deploy Redis replicas
-  hosts: redis_replicas
+  hosts: redis-cluster-1
   vars:
     ansible_become: true
   tasks:
-    - name: Deploy Redis master
+    - name: Deploy Redis replicas
       include_role:
-        name: ansible-role-redis
+        name: "{{ lookup('env', 'MOLECULE_PROJECT_DIRECTORY') | basename }}"
         tasks_from: redis.yml
 
 - name: Deploy Redis sentinel
-  hosts: redis_sentinel
+  hosts: sentinel-1
   vars:
     ansible_become: true
   tasks:
     - name: Deploy Redis sentinel
       include_role:
-        name: ansible-role-redis
+        name: "{{ lookup('env', 'MOLECULE_PROJECT_DIRECTORY') | basename }}"
         tasks_from: sentinel.yml

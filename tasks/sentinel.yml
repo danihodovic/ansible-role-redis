@@ -1,11 +1,20 @@
 ---
 - include_tasks: ./facts.yml
 
-- name: Pull Sentinel container
-  docker_image:
-    source: pull
-    name: redis:latest
-    force: true
+- name: Assert facts
+  assert:
+    that:
+      - redis_network_range is defined
+      - redis_primary is defined
+
+- name: Gather Redis master IP
+  setup:
+  delegate_to: '{{ redis_primary }}'
+  delegate_facts: true
+
+- name: Set Redis master IP
+  set_fact:
+    redis_primary_ip: "{{ hostvars[redis_primary].ansible_all_ipv4_addresses | ipaddr(redis_network_range) | max }}"
 
 - name: Create Sentinel dir
   file:
@@ -19,6 +28,11 @@
     src: sentinel.conf
     dest: /opt/sentinel/sentinel.conf
     mode: 0666
+
+- name: Pull Sentinel container
+  docker_image:
+    source: pull
+    name: redis:latest
 
 - name: Start Sentinel
   docker_container:
@@ -36,11 +50,9 @@
     volumes:
       - '/opt/sentinel:/opt/sentinel'
 
-- name: Wait for port
-  wait_for:
-    host: '{{ redis_bind_ip }}'
+- include_tasks: ./wait_for_port.yml
+  vars:
     port: 26379
-    timeout: 30
 
 - name: Check sentinel status
   changed_when: false
@@ -48,4 +60,4 @@
   retries: 10
   delay: 1
   register: _health
-  until: "'sentinels=' + num_redis_sentinel in _health.stdout"
+  until: "'status=ok' in _health.stdout"
