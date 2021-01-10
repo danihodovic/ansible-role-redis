@@ -1,12 +1,6 @@
 ---
 - include_tasks: ./facts.yml
 
-- name: Pull Redis container
-  docker_image:
-    source: pull
-    name: redis:latest
-    force: true
-
 - name: Create Redis dir
   file:
     state: directory
@@ -14,47 +8,41 @@
     recurse: true
     mode: 0777
 
+- set_fact:
+    is_replica: '{{ inventory_hostname != redis_primary }}'
+
+- when: is_replica
+  block:
+    - name: Check that the master host exists
+      assert:
+        that:
+          - redis_primary in hostvars
+
+    - name: Gather Redis master facts
+      setup:
+      delegate_to: '{{ redis_primary }}'
+      delegate_facts: true
+
+    - name: Set Redis master IP
+      set_fact:
+        redis_primary_ip: "{{ hostvars[redis_primary].ansible_all_ipv4_addresses | ipaddr(redis_network_range) | max }}"
+
 - name: Template Redis config
   register: template_config
   template:
     src: redis.conf
     dest: /opt/redis/redis.conf
 
+- name: Pull Redis container
+  docker_image:
+    source: pull
+    name: redis:latest
+
 - name: Start Redis
-  docker_container:
-    comparisons:
-      '*': strict
-    image: redis:latest
-    name: redis
-    restart: '{{ template_config.changed }}'
-    restart_policy: unless-stopped
-    command: redis-server /opt/redis/redis.conf
-    memory: '{{ ansible_memory_mb.real.total * 0.1 }}m'
-    cpu_shares: '{{ (1024 * 0.1) | int }}'
-    network_mode: host
-    volumes:
-      - '/opt/redis:/opt/redis'
+  docker_container: '{{ redis_docker_container_defaults | combine(redis_docker_container) }}'
 
-- name: Wait for port
-  wait_for:
-    host: '{{ redis_bind_ip }}'
+- include_tasks: ./wait_for_port.yml
+  vars:
     port: 6379
-    timeout: 30
 
-- name: Check master status
-  when: "'redis_primary' in group_names"
-  changed_when: false
-  shell: 'docker exec redis redis-cli INFO'
-  retries: 10
-  delay: 1
-  register: _health
-  until: "'role:master' in _health.stdout"
-
-- name: Check slave status
-  when: "'redis_replicas' in group_names"
-  changed_when: false
-  shell: 'docker exec redis redis-cli INFO'
-  retries: 10
-  delay: 1
-  register: _health
-  until: "'master_link_status:up' in _health.stdout"
+- include_tasks: ./check_master_status.yml

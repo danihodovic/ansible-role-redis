@@ -1,0 +1,17 @@
+---
+redis_dir: /opt/redis
+redis_docker_container: {}
+redis_docker_container_defaults:
+  comparisons:
+    '*': strict
+  image: redis:latest
+  name: redis
+  restart: '{{ template_config.changed }}'
+  restart_policy: unless-stopped
+  command: redis-server /opt/redis/redis.conf
+  memory: '{{ ansible_memory_mb.real.total * 0.8 }}m'
+  cpu_shares: '{{ (1024 * 8) | int }}'
+  network_mode: host
+  volumes:
+    - '/opt/redis:/opt/redis'
+redis_primary: '{{ inventory_hostname }}'

@@ -1,27 +1,9 @@
 ---
-- name: Set facts
-  set_fact:
-    num_redis_replicas: '{{ groups.redis_replicas | length }}'
-    num_redis_sentinel: '{{ groups.redis_sentinel | length }}'
-
 - name: Assert facts
   assert:
     that:
       - redis_network_range is defined
-      - (groups.redis_primary | length) == 1
-      - (num_redis_replicas|int) >= 1
-      - (num_redis_sentinel|int) >= 3
 
 - name: Find Redis IP
   set_fact:
     redis_bind_ip: '{{ ansible_all_ipv4_addresses | ipaddr(redis_network_range) | max }}'
-
-- name: Gather Redis master IP
-  setup:
-  delegate_to: '{{ item }}'
-  delegate_facts: true
-  loop: '{{ groups.redis_primary }}'
-
-- name: Set Redis master IP
-  set_fact:
-    redis_primary_ip: "{{ hostvars[groups.redis_primary[0]].ansible_all_ipv4_addresses | ipaddr(redis_network_range) | max }}"

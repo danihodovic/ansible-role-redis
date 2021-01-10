@@ -5,20 +5,23 @@ driver:
   name: ec2
 platforms:
   - &common
-    name: primary
+    name: primary-1
     vpc_subnet_id: subnet-1efffb7b
     image: ami-0c48db26521ca9f07
     instance_type: m5.xlarge
-    groups: [redis_primary, redis_sentinel]
+    groups: [redis-cluster-1, sentinel-1]
   - <<: *common
     name: replica-1
-    groups: [redis_replicas]
+    groups: [redis-cluster-1]
   - <<: *common
     name: replica-2
-    groups: [redis_replicas, redis_sentinel]
+    groups: [redis-cluster-1, sentinel-1]
   - <<: *common
     name: sentinel
-    groups: [redis_sentinel]
+    groups: [sentinel-1]
+  - <<: *common
+    name: standalone
+    groups: [all]
 provisioner:
   name: ansible
   config_options:
@@ -31,6 +34,10 @@ provisioner:
       all:
         redis_network_range: '172.31.0.0/20'
         molecule_no_log: false
+      redis-cluster-1:
+        redis_primary: primary-1
+      sentinel-1:
+        redis_primary: primary-1
 verifier:
   name: testinfra
   directory: ../../tests

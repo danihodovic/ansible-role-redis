@@ -1,18 +1,11 @@
 ---
-- name: Assert facts
-  assert:
-    that:
-      - redis_network_range is defined
+- include_tasks: ./facts.yml
 
 - name: Pull redis exporter image
   docker_image:
     source: pull
     name: oliver006/redis_exporter
     force: true
-
-- name: Find Redis IP
-  set_fact:
-    redis_bind_ip: '{{ ansible_all_ipv4_addresses | ipaddr(redis_network_range) | max }}'
 
 - name: Start container
   docker_container:
