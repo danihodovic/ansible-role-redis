@@ -4,7 +4,7 @@
 - name: Create Redis dir
   file:
     state: directory
-    path: /opt/redis/data
+    path: '{{ redis_dir }}'
     recurse: true
     mode: 0777
 
@@ -31,7 +31,7 @@
   register: template_config
   template:
     src: redis.conf
-    dest: /opt/redis/redis.conf
+    dest: '{{ redis_dir }}/redis.conf'
 
 - name: Pull Redis container
   docker_image:

@@ -10,10 +10,10 @@ redis_docker_container_defaults:
   name: redis
   restart: '{{ template_config.changed }}'
   restart_policy: unless-stopped
-  command: redis-server /opt/redis/redis.conf
+  command: 'redis-server {{ redis_dir }}/redis.conf'
   memory: '{{ ansible_memory_mb.real.total * 0.8 }}m'
   cpu_shares: '{{ (1024 * 8) | int }}'
   network_mode: host
   volumes:
-    - '/opt/redis:/opt/redis'
+    - '{{ redis_dir }}:{{ redis_dir }}'
 redis_primary: '{{ inventory_hostname }}'
