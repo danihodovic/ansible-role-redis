@@ -43,6 +43,6 @@
 
 - include_tasks: ./wait_for_port.yml
   vars:
-    port: 6379
+    port: '{{ redis_port }}'
 
 - include_tasks: ./check_master_status.yml

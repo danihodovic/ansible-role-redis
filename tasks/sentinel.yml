@@ -52,11 +52,11 @@
 
 - include_tasks: ./wait_for_port.yml
   vars:
-    port: 26379
+    port: '{{ sentinel_port }}'
 
 - name: Check sentinel status
   changed_when: false
-  shell: 'docker exec sentinel redis-cli -p 26379 INFO'
+  shell: 'docker exec sentinel redis-cli -p {{ sentinel_port }} INFO'
   retries: 10
   delay: 1
   register: _health

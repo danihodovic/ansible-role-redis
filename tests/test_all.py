@@ -16,8 +16,42 @@ def target_host(request):
     return fn
 
 
+def _cmd(target_host, host, redis_cmd, container, port_variable):
+    if isinstance(host, str):
+        h = target_host(host)
+    else:
+        h = host
+
+    port = h.ansible.get_variables()[port_variable]
+    return h.check_output(f"docker exec {container} redis-cli -p {port} {redis_cmd}")
+
+
+@pytest.fixture(scope="session")
+def redis_cmd(target_host):
+    return lambda host, redis_cmd: _cmd(
+        target_host, host, redis_cmd, "redis", "redis_port"
+    )
+
+
+@pytest.fixture(scope="session")
+def sentinel_cmd(target_host):
+    return lambda host, redis_cmd: _cmd(
+        target_host, host, redis_cmd, "sentinel", "sentinel_port"
+    )
+
+
+@pytest.fixture(scope="session")
+def redis_master_addr(sentinel_cmd):
+    def fn():
+        output = sentinel_cmd("sentinel", "SENTINEL MASTERS")
+        sentinel_primary_ip = output.split()[3]
+        return sentinel_primary_ip
+
+    return fn
+
+
 @pytest.fixture(autouse=True, scope="session")
-def configure_test(target_host):
+def configure_test(target_host, sentinel_cmd):
     sentinel = target_host("sentinel")
     primary = target_host("primary-1")
     replica2 = target_host("replica-2")
@@ -27,16 +61,15 @@ def configure_test(target_host):
             f"sentinel set {sentinel_primary_name} down-after-milliseconds 1000",
             f"sentinel set {sentinel_primary_name} failover-timeout 1000",
         ]:
-            host.check_output(("docker exec sentinel redis-cli -p 26379 " + cmd))
+            sentinel_cmd(host, cmd)
 
 
 @pytest.fixture(autouse=True)
-def restore_master(target_host):
+def restore_master(target_host, redis_master_addr):
     primary = target_host("primary-1")
-    sentinel_primary_ip = _get_master_addr(primary)
     primary_ip = primary.interface("ens5").addresses[0]
     # Only restore if not restored!
-    if sentinel_primary_ip == primary_ip:
+    if redis_master_addr() == primary_ip:
         return
 
     print(f"Master not set to primary, attempting to restore to {primary_ip}...")
@@ -59,40 +92,39 @@ def restore_master(target_host):
         host.check_output("docker start redis")
 
     time.sleep(5)
-    sentinel_primary_ip = _get_master_addr(primary)
-    assert sentinel_primary_ip == primary_ip
+    assert redis_master_addr() == primary_ip
 
 
-def test_failover_master(target_host):
+def test_failover_master(target_host, redis_master_addr):
     primary = target_host("primary-1")
     replica1 = target_host("replica-1")
     replica2 = target_host("replica-2")
-    assert _get_master_addr(primary) == primary.interface("ens5").addresses[0]
+    assert redis_master_addr() == primary.interface("ens5").addresses[0]
 
     # Force failover
     primary.check_output("docker stop redis")
 
     time.sleep(10)
-    assert _get_master_addr(primary) in [
+    assert redis_master_addr() in [
         replica1.interface("ens5").addresses[0],
         replica2.interface("ens5").addresses[0],
     ]
 
 
-def test_data_replication(target_host):
+def test_data_replication(target_host, redis_cmd):
     primary = target_host("primary-1")
     replica1 = target_host("replica-1")
     replica2 = target_host("replica-2")
     standalone = target_host("standalone")
 
-    primary.check_output("docker exec redis redis-cli FLUSHDB")
-    primary.check_output("docker exec redis redis-cli set somekey somevalue")
+    redis_cmd(primary, "FLUSHDB")
+    redis_cmd(primary, "SET somekey somevalue")
 
     for host in [replica1, replica2]:
-        value = host.check_output("docker exec redis redis-cli get somekey")
-        assert value == "somevalue"
+        value = redis_cmd(host, "GET somekey")
+        assert value == "somevalue", f"failed to replicate data to {host}"
 
-    value = standalone.check_output("docker exec redis redis-cli get somekey")
+    value = redis_cmd(standalone, "GET somekey")
     assert value == ""
 
 
@@ -104,9 +136,14 @@ def test_prometheus_metrics(target_host):
     assert "redis_up 1" in res["content"]
 
 
-def _get_master_addr(host):
-    result = host.check_output(
-        "docker exec sentinel redis-cli -p 26379 SENTINEL MASTERS"
-    )
-    sentinel_primary_ip = result.split()[3]
-    return sentinel_primary_ip
+def test_listening(target_host):
+    primary = target_host("primary-1")
+    addr = primary.interface("ens5").addresses[0]
+
+    # Redis
+    assert primary.socket(f"tcp://{addr}:4444").is_listening
+    assert primary.socket("tcp://127.0.0.1:4444").is_listening
+
+    # Sentinel
+    assert primary.socket(f"tcp://{addr}:55555").is_listening
+    assert primary.socket("tcp://127.0.0.1:55555").is_listening

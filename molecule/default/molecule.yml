@@ -34,6 +34,8 @@ provisioner:
       all:
         redis_network_range: '172.31.0.0/20'
         molecule_no_log: false
+        redis_port: 4444
+        sentinel_port: 55555
       redis-cluster-1:
         redis_primary: primary-1
       sentinel-1:
