@@ -1,6 +1,8 @@
 ---
 redis_dir: /opt/redis
 redis_docker_container: {}
+redis_port: 6379
+sentinel_port: 26379
 redis_docker_container_defaults:
   comparisons:
     '*': strict
