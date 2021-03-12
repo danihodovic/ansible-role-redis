@@ -14,7 +14,7 @@ workspace:
   path: ${DRONE_REPO_NAME}
 
 steps:
-  - name: restore-cache-with-filesystem
+  - name: restore-cache
     image: meltwater/drone-cache:dev
     pull: true
     settings:
@@ -29,6 +29,7 @@ steps:
         path: /tmp/cache
 
   - name: install-dependencies
+    depends_on: [restore-cache]
     image: python:3.8
     commands:
       # If the virtualenv dir is not cached create it
@@ -38,6 +39,7 @@ steps:
 
   - &common
     name: molecule-create
+    depends_on: [install-dependencies]
     image: python:3.8
     volumes:
       - name: molecule-config
@@ -59,18 +61,21 @@ steps:
 
   - <<: *common
     name: molecule-converge
+    depends_on: [molecule-create]
     commands:
       - . .virtualenv/bin/activate
       - molecule converge
 
   - <<: *common
     name: molecule-verify
+    depends_on: [molecule-converge]
     commands:
       - . .virtualenv/bin/activate
       - molecule verify
 
   - <<: *common
     name: molecule-destroy
+    depends_on: [molecule-verify]
     commands:
       - . .virtualenv/bin/activate
       - molecule destroy
@@ -82,12 +87,14 @@ steps:
 
   - <<: *common
     name: lint-py
+    depends_on: [install-dependencies]
     commands:
       - . .virtualenv/bin/activate
       - black --check .
       - isort --check-only .
 
-  - name: rebuild-cache-with-filesystem
+  - name: rebuild-cache
+    depends_on: [install-dependencies]
     image: meltwater/drone-cache:dev
     pull: true
     settings:
